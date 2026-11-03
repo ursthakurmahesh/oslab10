@@ -1,0 +1,303 @@
+Only in /tmp/xv6-orig-backup: .git
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/Makefile /tmp/repo/xv6/Makefile
+--- /tmp/xv6-orig-backup/Makefile	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/Makefile	2026-11-03 15:29:59.804491344 +0530
+@@ -181,6 +181,10 @@
+ 	_usertests\
+ 	_wc\
+ 	_zombie\
++	_memtest\
++	_vttest\
++	_pagetest\
++	_pagereplace\
+ 
+ fs.img: mkfs README $(UPROGS)
+ 	./mkfs fs.img README $(UPROGS)
+Only in /tmp/xv6-orig-backup: _cat
+Only in /tmp/xv6-orig-backup: _echo
+Only in /tmp/xv6-orig-backup: _forktest
+Only in /tmp/xv6-orig-backup: _grep
+Only in /tmp/xv6-orig-backup: _init
+Only in /tmp/xv6-orig-backup: _kill
+Only in /tmp/xv6-orig-backup: _ln
+Only in /tmp/xv6-orig-backup: _ls
+Only in /tmp/xv6-orig-backup: _mkdir
+Only in /tmp/xv6-orig-backup: _rm
+Only in /tmp/xv6-orig-backup: _sh
+Only in /tmp/xv6-orig-backup: _stressfs
+Only in /tmp/xv6-orig-backup: _usertests
+Only in /tmp/xv6-orig-backup: _wc
+Only in /tmp/xv6-orig-backup: _zombie
+Only in /tmp/xv6-orig-backup: bootblock
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/defs.h /tmp/repo/xv6/defs.h
+--- /tmp/xv6-orig-backup/defs.h	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/defs.h	2026-11-03 15:29:59.804491344 +0530
+@@ -65,6 +65,7 @@
+ 
+ // kalloc.c
+ char*           kalloc(void);
++int             kfree_pages(void);      // Assignment 10, Q1(b): free-list length
+ void            kfree(char*);
+ void            kinit1(void*, void*);
+ void            kinit2(void*, void*);
+@@ -184,6 +185,9 @@
+ void            switchuvm(struct proc*);
+ void            switchkvm(void);
+ int             copyout(pde_t*, uint, void*, uint);
++int             vtop(uint);             // Assignment 10, Q2(a)
++int             pageinfo(uint);         // Assignment 10, Q3(a)
++int             setreadonly(uint);      // Assignment 10, Q3(b)
+ void            clearpteu(pde_t *pgdir, char *uva);
+ 
+ // number of elements in fixed-size array
+Only in /tmp/xv6-orig-backup: entryother
+Only in /tmp/xv6-orig-backup: fs.img
+Only in /tmp/xv6-orig-backup: initcode
+Only in /tmp/xv6-orig-backup: initcode.out
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/kalloc.c /tmp/repo/xv6/kalloc.c
+--- /tmp/xv6-orig-backup/kalloc.c	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/kalloc.c	2026-11-03 15:29:59.804491344 +0530
+@@ -23,6 +23,10 @@
+   struct run *freelist;
+ } kmem;
+ 
++// Assignment 10, Q1(a): counters tracking physical page allocations and frees.
++int kpage_allocs = 0;  // total pages ever handed out by kalloc()
++int kpage_frees  = 0;  // total pages ever returned by kfree()
++
+ // Initialization happens in two phases.
+ // 1. main() calls kinit1() while still using entrypgdir to place just
+ // the pages mapped by entrypgdir on free list.
+@@ -72,6 +76,9 @@
+   r = (struct run*)v;
+   r->next = kmem.freelist;
+   kmem.freelist = r;
++  // Assignment 10, Q1(a): count every freed page (skip allocator init)
++  if(kmem.use_lock)
++    kpage_frees++;
+   if(kmem.use_lock)
+     release(&kmem.lock);
+ }
+@@ -91,6 +98,25 @@
+     kmem.freelist = r->next;
+   if(kmem.use_lock)
+     release(&kmem.lock);
++  // Assignment 10, Q1(a): count every allocated page (skip allocator init)
++  if(r && kmem.use_lock)
++    kpage_allocs++;
+   return (char*)r;
+ }
+ 
++// Assignment 10, Q1(b): number of pages currently sitting on the free
++// list - the exact count of available physical memory pages.
++int
++kfree_pages(void)
++{
++  struct run *r;
++  int n = 0;
++
++  if(kmem.use_lock)
++    acquire(&kmem.lock);
++  for(r = kmem.freelist; r; r = r->next)
++    n++;
++  if(kmem.use_lock)
++    release(&kmem.lock);
++  return n;
++}
+Only in /tmp/xv6-orig-backup: kernel
+Only in /tmp/repo/xv6: memtest.c
+Only in /tmp/xv6-orig-backup: mkfs
+Only in /tmp/repo/xv6: pagereplace.c
+Only in /tmp/repo/xv6: pagetest.c
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/syscall.c /tmp/repo/xv6/syscall.c
+--- /tmp/xv6-orig-backup/syscall.c	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/syscall.c	2026-11-03 15:29:59.804491344 +0530
+@@ -103,6 +103,10 @@
+ extern int sys_wait(void);
+ extern int sys_write(void);
+ extern int sys_uptime(void);
++extern int sys_memstats(void);     // Assignment 10, Q1(b)
++extern int sys_vtop(void);         // Assignment 10, Q2(a)
++extern int sys_pageinfo(void);     // Assignment 10, Q3(a)
++extern int sys_setreadonly(void);  // Assignment 10, Q3(b)
+ 
+ static int (*syscalls[])(void) = {
+ [SYS_fork]    sys_fork,
+@@ -126,6 +130,10 @@
+ [SYS_link]    sys_link,
+ [SYS_mkdir]   sys_mkdir,
+ [SYS_close]   sys_close,
++[SYS_memstats]    sys_memstats,     // Assignment 10, Q1(b)
++[SYS_vtop]        sys_vtop,         // Assignment 10, Q2(a)
++[SYS_pageinfo]    sys_pageinfo,     // Assignment 10, Q3(a)
++[SYS_setreadonly] sys_setreadonly,  // Assignment 10, Q3(b)
+ };
+ 
+ void
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/syscall.h /tmp/repo/xv6/syscall.h
+--- /tmp/xv6-orig-backup/syscall.h	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/syscall.h	2026-11-03 15:29:59.804491344 +0530
+@@ -20,3 +20,7 @@
+ #define SYS_link   19
+ #define SYS_mkdir  20
+ #define SYS_close  21
++#define SYS_memstats    22  // Assignment 10, Q1(b)
++#define SYS_vtop        23  // Assignment 10, Q2(a)
++#define SYS_pageinfo    24  // Assignment 10, Q3(a)
++#define SYS_setreadonly 25  // Assignment 10, Q3(b)
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/sysproc.c /tmp/repo/xv6/sysproc.c
+--- /tmp/xv6-orig-backup/sysproc.c	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/sysproc.c	2026-11-03 15:29:59.804491344 +0530
+@@ -7,6 +7,12 @@
+ #include "mmu.h"
+ #include "proc.h"
+ 
++// Assignment 10, Q1(a): allocation/free counters maintained in kalloc.c
++extern int kpage_allocs;
++extern int kpage_frees;
++// first address after the kernel image; defined by kernel.ld
++extern char end[];
++
+ int
+ sys_fork(void)
+ {
+@@ -89,3 +95,53 @@
+   release(&tickslock);
+   return xticks;
+ }
++
++// Assignment 10, Q1(b): display physical-memory statistics gathered by
++// the kalloc()/kfree() counters in kalloc.c.
++int
++sys_memstats(void)
++{
++  int total_alloc = kpage_allocs;              // total allocated pages (cumulative)
++  int total_free  = kpage_frees;               // total freed pages (cumulative)
++  int current     = total_alloc - total_free;  // pages in use right now
++  // frames managed by the page allocator: from end of kernel to PHYSTOP
++  int total_frames = (PHYSTOP - V2P((uint)end)) / PGSIZE;
++  int available    = kfree_pages();            // exact free-list length (kalloc.c)
++
++  cprintf("memstats: total allocated pages = %d\n", total_alloc);
++  cprintf("memstats: total freed pages = %d\n", total_free);
++  cprintf("memstats: currently allocated pages = %d\n", current);
++  cprintf("memstats: available physical memory pages = %d (of %d total frames)\n",
++          available, total_frames);
++  return 0;
++}
++
++// Assignment 10, Q2(a): syscall wrapper - arg is the virtual address.
++int
++sys_vtop(void)
++{
++  int va;
++  if(argint(0, &va) < 0)
++    return -1;
++  return vtop((uint)va);
++}
++
++// Assignment 10, Q3(a): syscall wrapper - arg is the virtual address.
++int
++sys_pageinfo(void)
++{
++  int va;
++  if(argint(0, &va) < 0)
++    return -1;
++  return pageinfo((uint)va);
++}
++
++// Assignment 10, Q3(b): syscall wrapper - arg is the virtual address.
++int
++sys_setreadonly(void)
++{
++  int va;
++  if(argint(0, &va) < 0)
++    return -1;
++  return setreadonly((uint)va);
++}
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/user.h /tmp/repo/xv6/user.h
+--- /tmp/xv6-orig-backup/user.h	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/user.h	2026-11-03 15:29:59.804491344 +0530
+@@ -23,6 +23,10 @@
+ char* sbrk(int);
+ int sleep(int);
+ int uptime(void);
++int memstats(void);        // Assignment 10, Q1(b): print physical memory statistics
++int vtop(int);             // Assignment 10, Q2(a): virtual-to-physical translation
++int pageinfo(int);         // Assignment 10, Q3(a): page mapping + flags info
++int setreadonly(int);      // Assignment 10, Q3(b): clear PTE_W on a page
+ 
+ // ulib.c
+ int stat(const char*, struct stat*);
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/usys.S /tmp/repo/xv6/usys.S
+--- /tmp/xv6-orig-backup/usys.S	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/usys.S	2026-11-03 15:29:59.804491344 +0530
+@@ -29,3 +29,7 @@
+ SYSCALL(sbrk)
+ SYSCALL(sleep)
+ SYSCALL(uptime)
++SYSCALL(memstats)     // Assignment 10, Q1(b)
++SYSCALL(vtop)         // Assignment 10, Q2(a)
++SYSCALL(pageinfo)     // Assignment 10, Q3(a)
++SYSCALL(setreadonly)  // Assignment 10, Q3(b)
+Only in /tmp/xv6-orig-backup: vectors.S
+diff -ru '--exclude=*.o' '--exclude=*.d' '--exclude=*.asm' '--exclude=*.sym' /tmp/xv6-orig-backup/vm.c /tmp/repo/xv6/vm.c
+--- /tmp/xv6-orig-backup/vm.c	2026-11-03 15:26:42.446833413 +0530
++++ /tmp/repo/xv6/vm.c	2026-11-03 15:29:59.804491344 +0530
+@@ -392,3 +392,54 @@
+ //PAGEBREAK!
+ // Blank page.
+ 
++// ------------------------------------------------------------------
++// Assignment 10, Q2(a)(b): translate a virtual address of the current
++// process into its physical address using walkpgdir(). Returns -1 if
++// the address has no valid, present page-table entry.
++int
++vtop(uint va)
++{
++  pte_t *pte;
++
++  // locate the page-table entry without creating missing tables
++  pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
++  if(pte == 0 || !(*pte & PTE_P))   // entry missing or page not present
++    return -1;
++  // physical frame address | page offset = complete physical address
++  return (int)(PTE_ADDR(*pte) | (va & 0xFFF));
++}
++
++// Assignment 10, Q3(a): report mapping, physical frame number and the
++// page-table flags (P, W, U) for a virtual address of the current process.
++int
++pageinfo(uint va)
++{
++  pte_t *pte;
++
++  pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
++  if(pte == 0 || !(*pte & PTE_P)){
++    cprintf("pageinfo: virtual address 0x%x is not mapped\n", va);
++    return -1;
++  }
++  cprintf("pageinfo: va 0x%x -> frame %d (pa 0x%x) flags:%s%s%s\n",
++          va, PTE_ADDR(*pte) >> 12, PTE_ADDR(*pte) | (va & 0xFFF),
++          (*pte & PTE_P) ? " P" : "",
++          (*pte & PTE_W) ? " W" : "",
++          (*pte & PTE_U) ? " U" : "");
++  return 0;
++}
++
++// Assignment 10, Q3(b): remove write permission (PTE_W) from the
++// page-table entry for a virtual address of the current process.
++int
++setreadonly(uint va)
++{
++  pte_t *pte;
++
++  pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
++  if(pte == 0 || !(*pte & PTE_P))
++    return -1;
++  *pte &= ~PTE_W;                  // clear the writable bit
++  lcr3(V2P(myproc()->pgdir));      // flush the TLB so the new permission applies
++  return 0;
++}
+Only in /tmp/repo/xv6: vttest.c
+Only in /tmp/xv6-orig-backup: xv6.img

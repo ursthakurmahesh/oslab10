@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+body { font-family: Helvetica, Arial, sans-serif; font-size: 11.5px; line-height: 1.45; color: #111; margin: 28px 34px; }
+h1 { font-size: 19px; margin-bottom: 2px; }
+h2 { font-size: 13.5px; margin: 14px 0 4px; border-bottom: 1px solid #999; padding-bottom: 2px; }
+.sub { color: #555; font-size: 11px; margin-bottom: 8px; }
+code, pre { font-family: "DejaVu Sans Mono", monospace; font-size: 10.5px; background: #f3f3f3; }
+pre { padding: 6px 8px; border: 1px solid #ddd; }
+table { border-collapse: collapse; margin: 6px 0; }
+th, td { border: 1px solid #888; padding: 3px 10px; text-align: center; }
+th { background: #eee; }
+ul { margin: 4px 0 6px 18px; padding: 0; }
+p { margin: 5px 0; }
+</style></head><body>
+
+<h1>Operating Systems - Assignment 10 Report</h1>
+<div class="sub">xv6 (x86, MIT 6.828 xv6-public) &nbsp;|&nbsp; Topics: physical memory tracking, virtual-to-physical translation, page-table management and page replacement</div>
+
+<h2>Question 1 - Tracking Physical Memory Allocation</h2>
+<p><b>Implementation.</b> In <code>kalloc.c</code> two counters were added: <code>kpage_allocs</code> (incremented on every successful <code>kalloc()</code>) and <code>kpage_frees</code> (incremented on every <code>kfree()</code>). Both are skipped during allocator initialisation (<code>kmem.use_lock == 0</code>) so the counters reflect real allocation activity after boot, and the free-side increment happens inside the allocator lock. A helper <code>kfree_pages()</code> walks the free list to return the exact number of available frames. The new system call <code>memstats()</code> (<code>sysproc.c</code>, number 22) prints total allocated pages, total freed pages, currently allocated pages (allocs - frees) and available pages (exact free-list length), with the total managed frame count <code>(PHYSTOP - V2P(end))/PGSIZE</code> for context.</p>
+<p><b>Test (memtest.c).</b> Prints stats, allocates 10 pages with <code>sbrk()</code> and touches them, prints stats again, then releases the pages (<code>sbrk(-40960)</code>) and prints stats a third time.</p>
+<p><b>Observation.</b> After allocation: total allocated rose 425 &rarr; 435 and available fell 56789 &rarr; 56779 (exactly 10 frames). After release: total freed rose 214 &rarr; 224 and available returned to 56789. The counters track allocation and deallocation precisely.</p>
+
+<h2>Question 2 - Virtual-to-Physical Address Translation</h2>
+<p><b>Implementation.</b> The system call <code>vtop(int va)</code> (number 23) is backed by <code>vtop()</code> in <code>vm.c</code>. It calls <code>walkpgdir(myproc()-&gt;pgdir, va, 0)</code> (no allocation of missing tables), rejects the address when the entry is missing or <code>PTE_P</code> is clear (returns -1), and otherwise returns <code>PTE_ADDR(*pte) | (va &amp; 0xFFF)</code> - the physical frame address combined with the page offset.</p>
+<p><b>Test (vttest.c).</b> Allocates 4 pages with <code>sbrk()</code>, translates three addresses (block start, second page, an offset inside a page) and then the unmapped address <code>0x40000000</code>.</p>
+<p><b>Observation.</b> e.g. <code>va 0x39C4 &rarr; pa 0xDEE39C4</code>: the low 12 bits (offset <code>0x9C4</code>) are preserved, only the frame is translated. The unmapped address returned -1 ("not mapped"), showing the PTE_P validity check works.</p>
+
+<h2>Question 3 - Page Table Management and Page Protection</h2>
+<p><b>Implementation.</b> Two system calls in <code>vm.c</code>: <code>pageinfo(va)</code> (number 24) locates the PTE and prints the physical frame number (<code>PTE_ADDR(*pte) &gt;&gt; 12</code>), full physical address and the P / W / U flags; <code>setreadonly(va)</code> (number 25) clears <code>PTE_W</code> in the entry and then reloads <code>cr3</code> (<code>lcr3(V2P(myproc()-&gt;pgdir))</code>) to flush the TLB so the new permission takes effect immediately.</p>
+<p><b>Test (pagetest.c).</b> Allocates one page, prints its info (flags <code>P W U</code>), makes it read-only, prints info again (flags <code>P U</code> - W cleared), then writes to the page.</p>
+<p><b>Observation.</b> The write faults: the kernel prints <code>pid 5 pagetest: trap 14 err 7 ... addr 0x3000--kill proc</code>. Error code 7 = protection violation (bit 0) caused by a write (bit 1) in user mode (bit 2). The page fault confirms that clearing PTE_W genuinely removes write permission.</p>
+
+<h2>Question 4 - Page Replacement: FIFO, LRU and Optimal</h2>
+<p><b>Implementation.</b> <code>pagereplace.c</code> simulates all three algorithms in user space on the reference string <code>7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1</code> (20 references). FIFO keeps a circular queue and evicts the oldest-loaded page; LRU records the time of each page's last reference and evicts the least recently used; Optimal looks ahead in the reference string and evicts the page whose next use is farthest away (or never). Every reference prints the frame contents and HIT/FAULT.</p>
+<p><b>Observed results (all computed by the program running inside xv6):</b></p>
+<table>
+<tr><th>Frames</th><th>Algorithm</th><th>Faults</th><th>Hits</th><th>Hit ratio</th><th>Fault ratio</th></tr>
+<tr><td>3</td><td>FIFO</td><td>15</td><td>5</td><td>25%</td><td>75%</td></tr>
+<tr><td>3</td><td>LRU</td><td>12</td><td>8</td><td>40%</td><td>60%</td></tr>
+<tr><td>3</td><td>Optimal</td><td>9</td><td>11</td><td>55%</td><td>45%</td></tr>
+<tr><td>4</td><td>FIFO</td><td>10</td><td>10</td><td>50%</td><td>50%</td></tr>
+<tr><td>4</td><td>LRU</td><td>8</td><td>12</td><td>60%</td><td>40%</td></tr>
+<tr><td>4</td><td>Optimal</td><td>8</td><td>12</td><td>60%</td><td>40%</td></tr>
+<tr><td>5</td><td>FIFO</td><td>9</td><td>11</td><td>55%</td><td>45%</td></tr>
+<tr><td>5</td><td>LRU</td><td>7</td><td>13</td><td>65%</td><td>35%</td></tr>
+<tr><td>5</td><td>Optimal</td><td>7</td><td>13</td><td>65%</td><td>35%</td></tr>
+</table>
+<p><b>Conclusion.</b> Optimal performs best: 9 faults with 3 frames, matching the theoretical minimum because it exploits future knowledge of the reference string. LRU is a close second (12 at 3 frames, tying Optimal at 4 and 5 frames) since this string has strong temporal locality - recently used pages (0, 1, 2) tend to be reused soon. FIFO is worst at every frame count because it ignores usage and can evict a frequently reused page (e.g. page 0). Fault counts fall as frames increase for all three algorithms, and no Belady's anomaly appears for FIFO on this string.</p>
+
+<h2>Files and modifications</h2>
+<ul>
+<li><b>Kernel:</b> <code>kalloc.c</code> (Q1 counters + <code>kfree_pages()</code>), <code>vm.c</code> (<code>vtop()</code>, <code>pageinfo()</code>, <code>setreadonly()</code>), <code>sysproc.c</code> (syscall handlers), <code>syscall.c</code>/<code>syscall.h</code> (table + numbers), <code>user.h</code>/<code>usys.S</code> (user stubs), <code>defs.h</code> (declarations). Every change is commented <code>Assignment 10, Qx</code>.</li>
+<li><b>User programs:</b> <code>memtest.c</code>, <code>vttest.c</code>, <code>pagetest.c</code>, <code>pagereplace.c</code> (added to <code>UPROGS</code> in the Makefile).</li>
+<li><b>Evidence:</b> <code>screenshots/</code> (real QEMU VGA screen captures of each run) and <code>evidence/terminal-output.txt</code> (complete serial log of one boot running all four tests).</li>
+</ul>
+
+</body></html>

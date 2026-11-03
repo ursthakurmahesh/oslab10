@@ -1,0 +1,123 @@
+Could not open option rom 'kvmvapic.bin': No such file or directory
+memtest
+memtest: initial memory statistics
+memstats: total allocated pages = 425
+memstats: total freed pages = 214
+memstats: currently allocated pages = 211
+memstats: available physical memory pages = 56789 (of 57065 total frames)
+memtest: allocated 10 pages with sbrk()
+memstats: total allocated pages = 435
+memstats: total freed pages = 214
+memstats: currently allocated pages = 221
+memstats: available physical memory pages = 56779 (of 57065 total frames)
+memtest: released 10 pages
+memstats: total allocated pages = 435
+memstats: total freed pages = 224
+memstats: currently allocated pages = 211
+memstats: available physical memory pages = 56789 (of 57065 total frames)
+$ vttest
+vttest: translating virtual addresses of the sbrk() block
+vttest: va 0x3000 -> pa 0xDEE3000
+vttest: va 0x4000 -> pa 0xDEE1000
+vttest: va 0x39C4 -> pa 0xDEE39C4
+vttest: va 0x40000000 -> not mapped (vtop returned -1)
+$ pagetest
+pagetest: page allocated at va 0x3000
+pageinfo: va 0x3000 -> frame 57131 (pa 0xdf2b000) flags: P W U
+pagetest: removing write permission with setreadonly()
+pageinfo: va 0x3000 -> frame 57131 (pa 0xdf2b000) flags: P U
+pagetest: attempting to write to the read-only page...
+pid 5 pagetest: trap 14 err 7 on cpu 0 eip 0x75 addr 0x3000--kill proc
+$ pagereplace
+=== FIFO (3 frames) ===
+ref string: 7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1
+ref 7: [ 7 - - ] FAULT
+ref 0: [ 7 0 - ] FAULT
+ref 1: [ 7 0 1 ] FAULT
+ref 2: [ 2 0 1 ] FAULT
+ref 0: [ 2 0 1 ] HIT
+ref 3: [ 2 3 1 ] FAULT
+ref 0: [ 2 3 0 ] FAULT
+ref 4: [ 4 3 0 ] FAULT
+ref 2: [ 4 2 0 ] FAULT
+ref 3: [ 4 2 3 ] FAULT
+ref 0: [ 0 2 3 ] FAULT
+ref 3: [ 0 2 3 ] HIT
+ref 2: [ 0 2 3 ] HIT
+ref 1: [ 0 1 3 ] FAULT
+ref 2: [ 0 1 2 ] FAULT
+ref 0: [ 0 1 2 ] HIT
+ref 1: [ 0 1 2 ] HIT
+ref 7: [ 7 1 2 ] FAULT
+ref 0: [ 7 0 2 ] FAULT
+ref 1: [ 7 0 1 ] FAULT
+FIFO total page faults: 15
+
+=== LRU (3 frames) ===
+ref string: 7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1
+ref 7: [ 7 - - ] FAULT
+ref 0: [ 7 0 - ] FAULT
+ref 1: [ 7 0 1 ] FAULT
+ref 2: [ 2 0 1 ] FAULT
+ref 0: [ 2 0 1 ] HIT
+ref 3: [ 2 0 3 ] FAULT
+ref 0: [ 2 0 3 ] HIT
+ref 4: [ 4 0 3 ] FAULT
+ref 2: [ 4 0 2 ] FAULT
+ref 3: [ 4 3 2 ] FAULT
+ref 0: [ 0 3 2 ] FAULT
+ref 3: [ 0 3 2 ] HIT
+ref 2: [ 0 3 2 ] HIT
+ref 1: [ 1 3 2 ] FAULT
+ref 2: [ 1 3 2 ] HIT
+ref 0: [ 1 0 2 ] FAULT
+ref 1: [ 1 0 2 ] HIT
+ref 7: [ 1 0 7 ] FAULT
+ref 0: [ 1 0 7 ] HIT
+ref 1: [ 1 0 7 ] HIT
+LRU total page faults: 12
+
+=== Optimal (3 frames) ===
+ref string: 7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1
+ref 7: [ 7 - - ] FAULT
+ref 0: [ 7 0 - ] FAULT
+ref 1: [ 7 0 1 ] FAULT
+ref 2: [ 2 0 1 ] FAULT
+ref 0: [ 2 0 1 ] HIT
+ref 3: [ 2 0 3 ] FAULT
+ref 0: [ 2 0 3 ] HIT
+ref 4: [ 2 4 3 ] FAULT
+ref 2: [ 2 4 3 ] HIT
+ref 3: [ 2 4 3 ] HIT
+ref 0: [ 2 0 3 ] FAULT
+ref 3: [ 2 0 3 ] HIT
+ref 2: [ 2 0 3 ] HIT
+ref 1: [ 2 0 1 ] FAULT
+ref 2: [ 2 0 1 ] HIT
+ref 0: [ 2 0 1 ] HIT
+ref 1: [ 2 0 1 ] HIT
+ref 7: [ 7 0 1 ] FAULT
+ref 0: [ 7 0 1 ] HIT
+ref 1: [ 7 0 1 ] HIT
+Optimal total page faults: 9
+
+=== Comparison table: 3, 4 and 5 frames ===
+(same reference string, 20 references)
+
+Frames  Algo     Faults  Hits  Hit%   Fault%
+  3     FIFO     15      5    25%    75%
+  3     LRU      12      8    40%    60%
+  3     Optimal  9      11    55%    45%
+
+  4     FIFO     10      10    50%    50%
+  4     LRU      8      12    60%    40%
+  4     Optimal  8      12    60%    40%
+
+  5     FIFO     9      11    55%    45%
+  5     LRU      7      13    65%    35%
+  5     Optimal  7      13    65%    35%
+
+Best for this reference string: Optimal (9 faults at 3 frames).
+LRU is close behind (ties Optimal at 4 and 5 frames); FIFO is
+the worst of the three at every frame count tested.
+$ 
