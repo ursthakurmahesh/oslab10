@@ -1,0 +1,6 @@
+$ vttest
+vttest: translating virtual addresses of the sbrk() block
+vttest: va 0x3000 -> pa 0xDEE3000
+vttest: va 0x4000 -> pa 0xDEE1000
+vttest: va 0x39C4 -> pa 0xDEE39C4
+vttest: va 0x40000000 -> not mapped (vtop returned -1)

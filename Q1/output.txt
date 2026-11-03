@@ -1,0 +1,16 @@
+memtest
+memtest: initial memory statistics
+memstats: total allocated pages = 425
+memstats: total freed pages = 214
+memstats: currently allocated pages = 211
+memstats: available physical memory pages = 56789 (of 57065 total frames)
+memtest: allocated 10 pages with sbrk()
+memstats: total allocated pages = 435
+memstats: total freed pages = 214
+memstats: currently allocated pages = 221
+memstats: available physical memory pages = 56779 (of 57065 total frames)
+memtest: released 10 pages
+memstats: total allocated pages = 435
+memstats: total freed pages = 224
+memstats: currently allocated pages = 211
+memstats: available physical memory pages = 56789 (of 57065 total frames)

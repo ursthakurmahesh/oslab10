@@ -1,0 +1,29 @@
+// Q2 kernel changes, extracted for reading. Authoritative, buildable copies are in ../oslab10/
+
+// ---- oslab10/vm.c (line 396) ----
+// Assignment 10, Q2(a)(b): translate a virtual address of the current
+// process into its physical address using walkpgdir(). Returns -1 if
+// the address has no valid, present page-table entry.
+int
+vtop(uint va)
+{
+  pte_t *pte;
+
+  // locate the page-table entry without creating missing tables
+  pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
+  if(pte == 0 || !(*pte & PTE_P))   // entry missing or page not present
+    return -1;
+  // physical frame address | page offset = complete physical address
+  return (int)(PTE_ADDR(*pte) | (va & 0xFFF));
+}
+
+// ---- oslab10/sysproc.c (line 119) ----
+// Assignment 10, Q2(a): syscall wrapper - arg is the virtual address.
+int
+sys_vtop(void)
+{
+  int va;
+  if(argint(0, &va) < 0)
+    return -1;
+  return vtop((uint)va);
+}

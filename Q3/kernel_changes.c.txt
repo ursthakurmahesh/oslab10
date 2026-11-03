@@ -1,0 +1,60 @@
+// Q3 kernel changes, extracted for reading. Authoritative, buildable copies are in ../oslab10/
+
+// ---- oslab10/vm.c (line 412) ----
+// Assignment 10, Q3(a): report mapping, physical frame number and the
+// page-table flags (P, W, U) for a virtual address of the current process.
+int
+pageinfo(uint va)
+{
+  pte_t *pte;
+
+  pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
+  if(pte == 0 || !(*pte & PTE_P)){
+    cprintf("pageinfo: virtual address 0x%x is not mapped\n", va);
+    return -1;
+  }
+  cprintf("pageinfo: va 0x%x -> frame %d (pa 0x%x) flags:%s%s%s\n",
+          va, PTE_ADDR(*pte) >> 12, PTE_ADDR(*pte) | (va & 0xFFF),
+          (*pte & PTE_P) ? " P" : "",
+          (*pte & PTE_W) ? " W" : "",
+          (*pte & PTE_U) ? " U" : "");
+  return 0;
+}
+
+// ---- oslab10/vm.c (line 432) ----
+// Assignment 10, Q3(b): remove write permission (PTE_W) from the
+// page-table entry for a virtual address of the current process.
+int
+setreadonly(uint va)
+{
+  pte_t *pte;
+
+  pte = walkpgdir(myproc()->pgdir, (void*)va, 0);
+  if(pte == 0 || !(*pte & PTE_P))
+    return -1;
+  *pte &= ~PTE_W;                  // clear the writable bit
+  lcr3(V2P(myproc()->pgdir));      // flush the TLB so the new permission applies
+  return 0;
+}
+
+// ---- oslab10/sysproc.c (line 129) ----
+// Assignment 10, Q3(a): syscall wrapper - arg is the virtual address.
+int
+sys_pageinfo(void)
+{
+  int va;
+  if(argint(0, &va) < 0)
+    return -1;
+  return pageinfo((uint)va);
+}
+
+// ---- oslab10/sysproc.c (line 139) ----
+// Assignment 10, Q3(b): syscall wrapper - arg is the virtual address.
+int
+sys_setreadonly(void)
+{
+  int va;
+  if(argint(0, &va) < 0)
+    return -1;
+  return setreadonly((uint)va);
+}

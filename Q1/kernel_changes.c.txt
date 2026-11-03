@@ -1,0 +1,71 @@
+// Q1 kernel changes, extracted for reading. Authoritative, buildable copies are in ../oslab10/
+
+// ---- oslab10/kalloc.c (line 26) ----
+// Assignment 10, Q1(a): counters tracking physical page allocations and frees.
+int kpage_allocs = 0;  // total pages ever handed out by kalloc()
+int kpage_frees  = 0;  // total pages ever returned by kfree()
+
+
+// ---- oslab10/kalloc.c (line 79) ----
+  // Assignment 10, Q1(a): count every freed page (skip allocator init)
+  if(kmem.use_lock)
+    kpage_frees++;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+}
+
+
+// ---- oslab10/kalloc.c (line 101) ----
+  // Assignment 10, Q1(a): count every allocated page (skip allocator init)
+  if(r && kmem.use_lock)
+    kpage_allocs++;
+  return (char*)r;
+}
+
+
+// ---- oslab10/kalloc.c (line 107) ----
+// Assignment 10, Q1(b): number of pages currently sitting on the free
+// list - the exact count of available physical memory pages.
+int
+kfree_pages(void)
+{
+  struct run *r;
+  int n = 0;
+
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
+  for(r = kmem.freelist; r; r = r->next)
+    n++;
+  if(kmem.use_lock)
+    release(&kmem.lock);
+  return n;
+}
+
+// ---- oslab10/sysproc.c (line 10) ----
+// Assignment 10, Q1(a): allocation/free counters maintained in kalloc.c
+extern int kpage_allocs;
+extern int kpage_frees;
+// first address after the kernel image; defined by kernel.ld
+extern char end[];
+
+
+// ---- oslab10/sysproc.c (line 99) ----
+// Assignment 10, Q1(b): display physical-memory statistics gathered by
+// the kalloc()/kfree() counters in kalloc.c.
+int
+sys_memstats(void)
+{
+  int total_alloc = kpage_allocs;              // total allocated pages (cumulative)
+  int total_free  = kpage_frees;               // total freed pages (cumulative)
+  int current     = total_alloc - total_free;  // pages in use right now
+  // frames managed by the page allocator: from end of kernel to PHYSTOP
+  int total_frames = (PHYSTOP - V2P((uint)end)) / PGSIZE;
+  int available    = kfree_pages();            // exact free-list length (kalloc.c)
+
+  cprintf("memstats: total allocated pages = %d\n", total_alloc);
+  cprintf("memstats: total freed pages = %d\n", total_free);
+  cprintf("memstats: currently allocated pages = %d\n", current);
+  cprintf("memstats: available physical memory pages = %d (of %d total frames)\n",
+          available, total_frames);
+  return 0;
+}

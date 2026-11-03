@@ -11,17 +11,15 @@ Solutions for Operating Systems Assignment 10 on MIT's xv6-public (x86) teaching
 
 ## Layout
 
-- `oslab10/` - full xv6-public source with all modifications. Every change is commented `Assignment 10, Qx`.
-  Modified kernel files: `kalloc.c`, `vm.c`, `sysproc.c`, `syscall.c`, `syscall.h`, `defs.h`, `user.h`, `usys.S`, `Makefile`.
-- `evidence/modifications.diff` - complete diff against pristine xv6-public.
-- `evidence/terminal-output.txt` - full serial log of one QEMU boot running all four test programs.
-- `screenshots/` - genuine QEMU VGA screen captures (screendump) of each test run:
-  - `q1_memtest.png` - memstats before/after allocating and releasing 10 pages
-  - `q2_vttest.png` - va -> pa translations and the unmapped-address case
-  - `q3_pagetest.png` - page flags before/after `setreadonly()` and the resulting page fault (`trap 14 err 7`)
-  - `q4_fifo.png`, `q4_lru.png`, `q4_opt.png` - per-reference 3-frame traces (15 / 12 / 9 faults)
-  - `q4_table.png` - 3/4/5-frame comparison table (faults, hits, hit ratio, fault ratio)
-- `report/OS-Assignment-10-Report.pdf` - short report (implementation, modifications, algorithms, observations).
+Each question has its own folder with a README, its test program, the relevant kernel code, real output and real screenshots:
+
+- `Q1/` - physical memory tracking (`memtest.c`, `q1_memtest.png`)
+- `Q2/` - virtual-to-physical translation (`vttest.c`, `q2_vttest.png`)
+- `Q3/` - page tables and protection (`pagetest.c`, `q3_pagetest.png`)
+- `Q4/` - page replacement (`pagereplace.c`, `q4_fifo.png`, `q4_lru.png`, `q4_opt.png`, `q4_table.png`)
+- `oslab10/` - the one full, buildable xv6-public tree with all modifications (every change is commented `Assignment 10, Qx`). The `Qn/` copies are for reading; build from here. Shared plumbing (`syscall.c/h`, `user.h`, `usys.S`, `defs.h`, `Makefile`) lives only here.
+- `evidence/` - `modifications.diff` (complete diff against pristine xv6-public) and `terminal-output.txt` (full serial log of one boot).
+- `report/OS-Assignment-10-Report.pdf` - one-page report.
 
 ## Build and run
 
