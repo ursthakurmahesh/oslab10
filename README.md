@@ -11,7 +11,7 @@ Solutions for Operating Systems Assignment 10 on MIT's xv6-public (x86) teaching
 
 ## Layout
 
-- `xv6/` - full xv6-public source with all modifications. Every change is commented `Assignment 10, Qx`.
+- `oslab10/` - full xv6-public source with all modifications. Every change is commented `Assignment 10, Qx`.
   Modified kernel files: `kalloc.c`, `vm.c`, `sysproc.c`, `syscall.c`, `syscall.h`, `defs.h`, `user.h`, `usys.S`, `Makefile`.
 - `evidence/modifications.diff` - complete diff against pristine xv6-public.
 - `evidence/terminal-output.txt` - full serial log of one QEMU boot running all four test programs.
@@ -26,7 +26,7 @@ Solutions for Operating Systems Assignment 10 on MIT's xv6-public (x86) teaching
 ## Build and run
 
 ```sh
-cd xv6
+cd oslab10
 make            # builds xv6.img and fs.img (needs a 32-bit-capable gcc/binutils)
 make qemu-nox   # boots xv6 in QEMU
 ```
